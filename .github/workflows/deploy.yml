@@ -1,26 +1,69 @@
-name: Deploy a Hostinger via SFTP
+name: Deploy Capital Corp a Hostinger
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
 
 jobs:
   deploy:
-    name: Subir archivos por SFTP
     runs-on: ubuntu-latest
     steps:
-    - name: Obtener el código
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Desplegar por SFTP
-      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-      with:
-        server: ${{ secrets.FTP_SERVER }}
-        username: ${{ secrets.FTP_USERNAME }}
-        password: ${{ secrets.FTP_PASSWORD }}
-        port: ${{ secrets.FTP_PORT }}
-        local_path: './*'
-        remote_path: '/home/${{ secrets.FTP_USERNAME }}/public_html/'
-        sftp_only: true
-        delete_remote_files: false
+      - name: Verificar que existe index.html
+        run: |
+          echo "------ ARCHIVOS EN EL REPO ------"
+          ls -la
+          test -f index.html || (echo "index.html NO existe en la raíz" && exit 1)
+
+      - name: Preparar servidor (limpiar destino)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          script: |
+            set -e
+            echo "Preparando TARGET: ${{ secrets.DEPLOY_SERVER_DIR }}"
+            mkdir -p "${{ secrets.DEPLOY_SERVER_DIR }}"
+            echo "Limpiando TARGET..."
+            rm -rf "${{ secrets.DEPLOY_SERVER_DIR }}"/* "${{ secrets.DEPLOY_SERVER_DIR }}"/.* 2>/dev/null || true
+            echo "Directorio limpio:"
+            ls -la "${{ secrets.DEPLOY_SERVER_DIR }}"
+
+      - name: Subir archivos via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          source: "index.html,logo.svg,README.md"
+          target: ${{ secrets.DEPLOY_SERVER_DIR }}
+          overwrite: true
+
+      - name: Crear .htaccess en servidor
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          script: |
+            cat > "${{ secrets.DEPLOY_SERVER_DIR }}/.htaccess" <<'EOF'
+            DirectoryIndex index.html
+            RewriteEngine On
+            RewriteCond %{HTTPS} !=on
+            RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+            EOF
+            echo ".htaccess creado correctamente"
+
+      - name: Arreglar permisos
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          username: ${{ secrets.DEPLOY_USERNAME }}
+          passwor
