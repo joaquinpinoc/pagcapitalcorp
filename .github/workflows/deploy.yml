@@ -1,4 +1,4 @@
-name: Deploy a Hostinger
+name: Deploy a Hostinger via SFTP
 
 on:
   push:
@@ -6,25 +6,21 @@ on:
       - main
 
 jobs:
-  web-deploy:
-    name: Subir archivos a Hostinger
+  deploy:
+    name: Subir archivos por SFTP
     runs-on: ubuntu-latest
     steps:
     - name: Obtener el código
       uses: actions/checkout@v4
 
-    - name: Sincronizar con FTP
-      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+    - name: Desplegar por SFTP
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.4
       with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
         port: ${{ secrets.FTP_PORT }}
-        protocol: ftps
-        server-dir: /public_html/
-        local-dir: ./
-        exclude: |
-          **/.git*
-          **/.git*/**
-          **/README.md
-          **/.github/**
+        local_path: './*'
+        remote_path: '/home/${{ secrets.FTP_USERNAME }}/public_html/'
+        sftp_only: true
+        delete_remote_files: false
